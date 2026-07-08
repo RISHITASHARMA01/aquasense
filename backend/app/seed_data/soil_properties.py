@@ -43,3 +43,10 @@ SOIL_PROPERTIES = [
         "infiltration_rate_mm_per_hr": 2.0,
     },
 ]
+
+
+def get_soil_properties(soil_type: str) -> dict:
+    for entry in SOIL_PROPERTIES:
+        if entry["soil_type"] == soil_type:
+            return entry
+    raise ValueError(f"Unknown soil_type: {soil_type}")

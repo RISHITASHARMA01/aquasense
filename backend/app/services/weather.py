@@ -76,6 +76,40 @@ def fetch_weather_history(latitude: float, longitude: float, days: int = 30) -> 
     return result
 
 
+def fetch_weather_window(latitude: float, longitude: float, past_days: int, forecast_days: int = 7) -> dict:
+    """Fetch a single window of recent-past + forecast daily weather.
+
+    Uses the forecast endpoint's `past_days` parameter (supported up to 92
+    days) so both the recent history needed for the water balance and the
+    upcoming forecast (used for the 3-5 day irrigation outlook) come back
+    in one request. `past_days` is clamped to 92; longer growing-season
+    windows fall back to a rolling 90-day simulation window rather than
+    the full season — see recommendation.py for why.
+    """
+    cache_key = f"window:{latitude}:{longitude}:{past_days}:{forecast_days}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    response = httpx.get(
+        settings.open_meteo_forecast_url,
+        params={
+            "latitude": latitude,
+            "longitude": longitude,
+            "daily": ",".join(DAILY_VARS),
+            "past_days": min(past_days, 92),
+            "forecast_days": forecast_days,
+            "timezone": "UTC",
+        },
+        timeout=15.0,
+    )
+    response.raise_for_status()
+    data = response.json()
+    result = {"elevation": data.get("elevation", 0.0), "daily": data.get("daily", {})}
+    _cache_set(cache_key, result)
+    return result
+
+
 def fetch_weather_forecast(latitude: float, longitude: float, days: int = 7) -> dict:
     """Fetch upcoming daily weather forecast via the Open-Meteo forecast API."""
     cache_key = f"forecast:{latitude}:{longitude}:{days}"
