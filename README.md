@@ -182,8 +182,21 @@ constant, and Example 18's full Bangkok ET0 calculation — 5.72mm/day).
 
 ## Screenshots
 
-_(placeholder — add screenshots of the Dashboard, Field Detail, and Water
-Savings pages here for the capstone writeup)_
+**Dashboard** — at-a-glance status across all fields, with aggregate stats
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+**Field detail** — today's recommendation, 30-day moisture/ET trend, and forecast
+
+![Field detail](docs/screenshots/field-detail.png)
+
+**Water savings** — AquaSense's demand-based irrigation vs. a fixed calendar schedule
+
+![Water savings](docs/screenshots/water-savings.png)
+
+**Login**
+
+![Login](docs/screenshots/login.png)
 
 ## Phase 3 (stretch) — built
 
