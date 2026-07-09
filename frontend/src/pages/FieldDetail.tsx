@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import * as api from '../api/fields';
-import type { Field, History, Forecast, Recommendation } from '../types';
+import type { Field, History, Forecast, Recommendation, IrrigationOutlook } from '../types';
 import RecommendationCard from '../components/RecommendationCard';
 import MoistureChart from '../components/MoistureChart';
 import WeatherStrip from '../components/WeatherStrip';
@@ -14,10 +14,12 @@ export default function FieldDetail() {
 
   const [field, setField] = useState<Field | null>(null);
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
+  const [outlook, setOutlook] = useState<IrrigationOutlook | null>(null);
   const [history, setHistory] = useState<History | null>(null);
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [recError, setRecError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [downloadingReport, setDownloadingReport] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,9 +36,22 @@ export default function FieldDetail() {
           setHistory(hist);
         })
         .catch((err) => setRecError(err?.response?.data?.detail || 'Could not load recommendation'));
+      api.getOutlook(id).then(setOutlook).catch(() => {});
     }
     setLoading(false);
   }, [id]);
+
+  async function handleDownloadReport() {
+    if (!field) return;
+    setDownloadingReport(true);
+    try {
+      await api.downloadReport(field.id, field.name);
+    } catch {
+      alert('Could not generate the report.');
+    } finally {
+      setDownloadingReport(false);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -69,6 +84,15 @@ export default function FieldDetail() {
             </p>
           </div>
           <div className="flex gap-2">
+            {field.crops.some((c) => c.is_active) && (
+              <button
+                onClick={handleDownloadReport}
+                disabled={downloadingReport}
+                className="text-sm border border-aqua-200 text-aqua-700 px-3 py-1.5 rounded-lg hover:bg-aqua-50 disabled:opacity-50"
+              >
+                {downloadingReport ? 'Generating...' : '⬇ Report'}
+              </button>
+            )}
             <Link
               to={`/fields/${field.id}/edit`}
               className="text-sm border border-slate-300 px-3 py-1.5 rounded-lg hover:bg-slate-50"
@@ -97,7 +121,7 @@ export default function FieldDetail() {
           {recError ? (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-4">{recError}</p>
           ) : recommendation ? (
-            <RecommendationCard rec={recommendation} />
+            <RecommendationCard rec={recommendation} outlook={outlook} />
           ) : (
             <p className="text-slate-500">Loading recommendation...</p>
           )}

@@ -45,6 +45,19 @@ class ForecastRead(BaseModel):
     points: list[ForecastPoint]
 
 
+class OutlookProjectionPoint(BaseModel):
+    date: str
+    projected_depletion_mm: float
+    needs_irrigation: bool
+
+
+class IrrigationOutlookRead(BaseModel):
+    field_id: int
+    raw_mm: float
+    next_irrigation_date: str | None
+    projection: list[OutlookProjectionPoint]
+
+
 class WaterSavingsRead(BaseModel):
     field_id: int
     days_simulated: int

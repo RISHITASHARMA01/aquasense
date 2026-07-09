@@ -28,10 +28,10 @@ from app.services.water_balance import (
     recommend_irrigation,
 )
 
-FIXED_SCHEDULE_INTERVAL_DAYS = 3
 from app.services.weather import fetch_weather_forecast, fetch_weather_window
 
 MAX_SIMULATION_DAYS = 90
+FIXED_SCHEDULE_INTERVAL_DAYS = 3
 
 
 def _simulate_daily_series(field: Field, field_crop: FieldCrop, forecast_days: int = 7) -> tuple[list[dict], dict]:
@@ -195,6 +195,86 @@ def get_water_savings(field: Field, field_crop: FieldCrop) -> dict:
         "fixed_schedule_events": fixed.irrigation_events,
         "fixed_schedule_interval_days": FIXED_SCHEDULE_INTERVAL_DAYS,
         "percent_water_saved": percent_saved,
+    }
+
+
+def get_irrigation_outlook(field: Field, field_crop: FieldCrop, days: int = 5) -> dict:
+    """Project the soil water balance forward using forecast weather to
+    estimate which day (if any) within the outlook window will need
+    irrigation.
+
+    This is a lightweight, explainable forecast — a forward run of the same
+    ET0/Kc/water-balance model over Open-Meteo's forecast data, not a
+    trained regression — appropriate for the accuracy forecast weather data
+    itself allows.
+    """
+    series, ctx = _simulate_daily_series(field, field_crop)
+    if not series:
+        raise ValueError("No weather data available to compute an outlook yet")
+
+    today_entry = series[-1]
+    taw = ctx["taw_mm"]
+    raw = readily_available_water_mm(taw, field_crop.crop.depletion_fraction_p)
+    days_since_planting = (date.today() - field_crop.planting_date).days
+
+    weather = fetch_weather_forecast(field.latitude, field.longitude, days=days + 1)
+    daily = weather["daily"]
+    dates = daily.get("time", [])
+
+    depletion = today_entry["depletion_mm"]
+    projection = []
+    irrigation_day = None
+
+    for i, day_str in enumerate(dates):
+        day_date = datetime.fromisoformat(day_str).date()
+        if day_date <= date.today():
+            continue  # today is already accounted for by today_entry
+
+        t_max = daily["temperature_2m_max"][i]
+        t_min = daily["temperature_2m_min"][i]
+        rh_max = daily["relative_humidity_2m_max"][i]
+        rh_min = daily["relative_humidity_2m_min"][i]
+        wind = daily["wind_speed_10m_max"][i]
+        radiation = daily["shortwave_radiation_sum"][i]
+        precipitation = daily["precipitation_sum"][i] or 0.0
+        if None in (t_max, t_min, rh_max, rh_min, wind):
+            continue
+
+        et0_result = calculate_et0(
+            t_max_c=t_max,
+            t_min_c=t_min,
+            rh_max=rh_max,
+            rh_min=rh_min,
+            wind_speed_measured=wind,
+            latitude_deg=field.latitude,
+            elevation_m=weather["elevation"],
+            day_of_year=day_date.timetuple().tm_yday,
+            solar_radiation_mj=radiation,
+            wind_measurement_height_m=10.0,
+        )
+        days_into_season = days_since_planting + (day_date - date.today()).days
+        kc, _ = effective_kc(days_into_season, field_crop.crop.stage_lengths_days, field_crop.crop.kc_values)
+        etc = et0_result.et0_mm_day * kc
+        eff_rain = effective_rainfall_mm(precipitation)
+
+        depletion = update_depletion_mm(depletion, etc, eff_rain, irrigation_applied_mm=0.0, taw_mm=taw)
+        needs_irrigation = depletion >= raw
+        if needs_irrigation and irrigation_day is None:
+            irrigation_day = day_date.isoformat()
+
+        projection.append(
+            {
+                "date": day_date.isoformat(),
+                "projected_depletion_mm": round(depletion, 2),
+                "needs_irrigation": needs_irrigation,
+            }
+        )
+
+    return {
+        "field_id": field.id,
+        "raw_mm": round(raw, 2),
+        "next_irrigation_date": irrigation_day,
+        "projection": projection,
     }
 
 

@@ -39,6 +39,8 @@ export default function Dashboard() {
         </Link>
       </div>
 
+      {!loading && fields.length > 0 && <AggregateStats fields={fields} recommendations={recommendations} />}
+
       {loading ? (
         <p className="text-slate-500">Loading fields...</p>
       ) : fields.length === 0 ? (
@@ -69,6 +71,40 @@ export default function Dashboard() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function AggregateStats({
+  fields,
+  recommendations,
+}: {
+  fields: Field[];
+  recommendations: Record<number, Recommendation | null>;
+}) {
+  const totalArea = fields.reduce((sum, f) => sum + f.area_hectares, 0);
+  const fieldsWithCrop = fields.filter((f) => f.crops.some((c) => c.is_active));
+  const needingWaterToday = fieldsWithCrop.filter((f) => recommendations[f.id]?.needs_irrigation).length;
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <StatCard label="Total Fields" value={fields.length} />
+      <StatCard label="Total Area" value={`${totalArea.toFixed(1)} ha`} />
+      <StatCard label="Fields Planted" value={fieldsWithCrop.length} />
+      <StatCard
+        label="Need Water Today"
+        value={needingWaterToday}
+        highlight={needingWaterToday > 0}
+      />
+    </div>
+  );
+}
+
+function StatCard({ label, value, highlight }: { label: string; value: string | number; highlight?: boolean }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-4">
+      <p className={`text-2xl font-bold ${highlight ? 'text-amber-600' : 'text-slate-800'}`}>{value}</p>
+      <p className="text-xs text-slate-500 mt-0.5">{label}</p>
     </div>
   );
 }

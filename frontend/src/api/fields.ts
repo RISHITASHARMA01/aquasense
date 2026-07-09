@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Field, Forecast, History, Recommendation, Crop, WaterSavings } from '../types';
+import type { Field, Forecast, History, Recommendation, Crop, WaterSavings, IrrigationOutlook } from '../types';
 
 export async function listFields(): Promise<Field[]> {
   const { data } = await apiClient.get('/fields');
@@ -65,4 +65,21 @@ export async function getForecast(fieldId: number): Promise<Forecast> {
 export async function getWaterSavings(fieldId: number): Promise<WaterSavings> {
   const { data } = await apiClient.get(`/fields/${fieldId}/water-savings`);
   return data;
+}
+
+export async function getOutlook(fieldId: number): Promise<IrrigationOutlook> {
+  const { data } = await apiClient.get(`/fields/${fieldId}/outlook`);
+  return data;
+}
+
+export async function downloadReport(fieldId: number, fieldName: string): Promise<void> {
+  const { data } = await apiClient.get(`/fields/${fieldId}/report.pdf`, { responseType: 'blob' });
+  const url = window.URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `aquasense-${fieldName.replace(/\s+/g, '_')}-report.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }

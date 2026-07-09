@@ -1,6 +1,15 @@
-import type { Recommendation } from '../types';
+import type { IrrigationOutlook, Recommendation } from '../types';
 
-export default function RecommendationCard({ rec }: { rec: Recommendation }) {
+function outlookLabel(outlook: IrrigationOutlook | null | undefined, todayNeedsIrrigation: boolean): string | null {
+  if (!outlook || todayNeedsIrrigation) return null;
+  if (!outlook.next_irrigation_date) return `No irrigation expected in the next ${outlook.projection.length} days`;
+  const days = outlook.projection.findIndex((p) => p.date === outlook.next_irrigation_date) + 1;
+  return `Next irrigation likely in ~${days} day${days === 1 ? '' : 's'} (${outlook.next_irrigation_date})`;
+}
+
+export default function RecommendationCard({ rec, outlook }: { rec: Recommendation; outlook?: IrrigationOutlook | null }) {
+  const outlookText = outlookLabel(outlook, rec.needs_irrigation);
+
   return (
     <div
       className={`rounded-xl border p-5 shadow-sm ${
@@ -32,6 +41,12 @@ export default function RecommendationCard({ rec }: { rec: Recommendation }) {
         <Stat label="Kc" value={rec.kc.toFixed(2)} />
         <Stat label="Growth stage" value={rec.growth_stage} capitalize />
       </div>
+
+      {outlookText && (
+        <p className="text-xs font-medium text-slate-600 bg-white/60 rounded-lg px-3 py-2 mt-3 inline-block">
+          📅 {outlookText}
+        </p>
+      )}
 
       {rec.used_radiation_fallback && (
         <p className="text-xs text-slate-400 mt-3">

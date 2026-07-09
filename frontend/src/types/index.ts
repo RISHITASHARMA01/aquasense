@@ -72,6 +72,19 @@ export interface Forecast {
   points: ForecastPoint[];
 }
 
+export interface OutlookProjectionPoint {
+  date: string;
+  projected_depletion_mm: number;
+  needs_irrigation: boolean;
+}
+
+export interface IrrigationOutlook {
+  field_id: number;
+  raw_mm: number;
+  next_irrigation_date: string | null;
+  projection: OutlookProjectionPoint[];
+}
+
 export interface WaterSavings {
   field_id: number;
   days_simulated: number;

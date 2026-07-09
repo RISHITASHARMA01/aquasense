@@ -185,6 +185,20 @@ constant, and Example 18's full Bangkok ET0 calculation — 5.72mm/day).
 _(placeholder — add screenshots of the Dashboard, Field Detail, and Water
 Savings pages here for the capstone writeup)_
 
+## Phase 3 (stretch) — built
+
+- **5-day irrigation outlook**: projects the same ET0/Kc/water-balance model
+  forward using Open-Meteo's forecast data, surfaced as a "next irrigation
+  likely in ~N days" chip on the recommendation card (`GET /fields/{id}/outlook`).
+- **Notification stub**: logs a mock "irrigate soon" alert when the outlook
+  predicts tomorrow needs water — swapping in a real provider (SES, Twilio)
+  is a config change, not an architecture change.
+- **PDF water usage report** per field (`GET /fields/{id}/report.pdf`, via
+  reportlab), downloadable from the field detail page.
+- **Multi-field aggregate stats** on the dashboard (total fields, area,
+  fields planted, fields needing water today) and an aggregate view on the
+  Water Savings page.
+
 ## What I'd do with more time
 
 - **Persist irrigation events** instead of re-simulating from a zero-depletion
@@ -196,9 +210,9 @@ Savings pages here for the capstone writeup)_
 - **Background jobs** to pre-compute/cache daily recommendations instead of
   recomputing the full weather-window simulation on every request.
 - **Alembic migrations** instead of `create_all` for schema evolution.
-- Finish the Phase 3 stretch goals not yet built: multi-day forecasting
-  regression, email notification delivery (currently mocked), PDF export,
-  and a multi-field aggregate dashboard.
+- Replace the forward-simulation outlook with an actual trained model (even
+  a simple regression against historical ET0/rainfall) once enough real
+  usage data exists to fit one.
 
 ## Tech stack
 

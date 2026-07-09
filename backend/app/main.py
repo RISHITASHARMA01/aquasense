@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -7,6 +8,8 @@ from app.db import Base, SessionLocal, engine
 from app.models.crop import Crop
 from app.routers import auth, crops, fields, recommendations
 from app.seed_data.crop_coefficients import CROP_COEFFICIENTS
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
 
 @asynccontextmanager
