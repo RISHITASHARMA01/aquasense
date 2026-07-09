@@ -1,5 +1,7 @@
 # AquaSense — Smart Irrigation Advisory System
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 AquaSense recommends exactly how much water to apply and when, using real
 evapotranspiration science, live weather data, and per-field/per-crop
 tracking — without requiring any physical sensors.
