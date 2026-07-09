@@ -1,3 +1,5 @@
+from datetime import date
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -21,7 +23,7 @@ class FieldCropCreate(BaseModel):
 class FieldCropRead(BaseModel):
     id: int
     crop_id: int
-    planting_date: str
+    planting_date: date
     current_depletion_mm: float
     is_active: bool
     crop: CropRead

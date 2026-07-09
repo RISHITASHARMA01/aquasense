@@ -31,3 +31,26 @@ class HistoryPoint(BaseModel):
 class HistoryRead(BaseModel):
     field_id: int
     points: list[HistoryPoint]
+
+
+class ForecastPoint(BaseModel):
+    date: str
+    t_max_c: float
+    t_min_c: float
+    precipitation_mm: float
+
+
+class ForecastRead(BaseModel):
+    field_id: int
+    points: list[ForecastPoint]
+
+
+class WaterSavingsRead(BaseModel):
+    field_id: int
+    days_simulated: int
+    aquasense_total_mm: float
+    aquasense_events: int
+    fixed_schedule_total_mm: float
+    fixed_schedule_events: int
+    fixed_schedule_interval_days: int
+    percent_water_saved: float

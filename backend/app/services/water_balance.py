@@ -107,6 +107,60 @@ def update_depletion_mm(
 
 
 @dataclass
+class ScenarioResult:
+    total_gross_mm: float
+    irrigation_events: int
+
+
+def simulate_demand_based_scenario(
+    daily_etc_and_rain: list[tuple[float, float]],
+    taw_mm: float,
+    raw_mm: float,
+    efficiency: float,
+) -> ScenarioResult:
+    """AquaSense scenario: irrigate only when depletion crosses RAW, refilling
+    to field capacity each time. This is the same trigger rule as
+    `recommend_irrigation`, run forward over a historical series to total up
+    how much water it would have actually applied.
+    """
+    depletion = 0.0
+    total_gross = 0.0
+    events = 0
+    for etc_mm, effective_rain_mm in daily_etc_and_rain:
+        depletion = update_depletion_mm(depletion, etc_mm, effective_rain_mm, 0.0, taw_mm)
+        if depletion >= raw_mm:
+            total_gross += depletion / efficiency
+            events += 1
+            depletion = 0.0
+    return ScenarioResult(round(total_gross, 2), events)
+
+
+def simulate_fixed_schedule_scenario(
+    daily_etc_and_rain: list[tuple[float, float]],
+    taw_mm: float,
+    efficiency: float,
+    interval_days: int,
+    fixed_net_depth_mm: float,
+) -> ScenarioResult:
+    """Baseline scenario: irrigate a fixed depth every `interval_days`
+    regardless of actual soil moisture — the common calendar-based practice
+    AquaSense is meant to replace. `fixed_net_depth_mm` defaults (set by the
+    caller) to RAW, modeling a farmer who irrigates back to a "full" feel
+    each cycle out of habit rather than measurement.
+    """
+    depletion = 0.0
+    total_gross = 0.0
+    events = 0
+    for day_index, (etc_mm, effective_rain_mm) in enumerate(daily_etc_and_rain, start=1):
+        depletion = update_depletion_mm(depletion, etc_mm, effective_rain_mm, 0.0, taw_mm)
+        if day_index % interval_days == 0:
+            total_gross += fixed_net_depth_mm / efficiency
+            events += 1
+            depletion = max(depletion - fixed_net_depth_mm, 0.0)
+    return ScenarioResult(round(total_gross, 2), events)
+
+
+@dataclass
 class IrrigationRecommendation:
     needs_irrigation: bool
     depletion_mm: float

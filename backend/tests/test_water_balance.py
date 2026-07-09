@@ -14,6 +14,8 @@ from app.services.water_balance import (
     readily_available_water_mm,
     update_depletion_mm,
     recommend_irrigation,
+    simulate_demand_based_scenario,
+    simulate_fixed_schedule_scenario,
 )
 
 
@@ -123,3 +125,30 @@ def test_recommend_irrigation_sprinkler_capped_by_infiltration():
     gross = 90.0 / 0.75
     assert rec.gross_depth_mm == pytest.approx(gross, abs=0.01)
     assert rec.duration_hours == pytest.approx(gross / 12.0, abs=0.01)
+
+
+def test_demand_based_scenario_irrigates_only_when_needed():
+    # TAW=100, RAW=50, constant ETc=5mm/day, no rain -> depletion hits 50 on day 10 -> 1 event, net=50mm
+    series = [(5.0, 0.0)] * 10
+    result = simulate_demand_based_scenario(series, taw_mm=100.0, raw_mm=50.0, efficiency=1.0)
+    assert result.irrigation_events == 1
+    assert result.total_gross_mm == pytest.approx(50.0)
+
+
+def test_fixed_schedule_scenario_irrigates_on_calendar_regardless_of_demand():
+    # 9 days, irrigate every 3 days with a fixed net depth of 20mm, efficiency 0.5 -> gross = 40mm per event, 3 events
+    series = [(1.0, 0.0)] * 9  # trivial ETc/rain, irrelevant to the fixed schedule's trigger
+    result = simulate_fixed_schedule_scenario(
+        series, taw_mm=200.0, efficiency=0.5, interval_days=3, fixed_net_depth_mm=20.0
+    )
+    assert result.irrigation_events == 3
+    assert result.total_gross_mm == pytest.approx(120.0)
+
+
+def test_demand_based_scenario_uses_less_water_than_over_irrigating_fixed_schedule():
+    # A fixed schedule that refills to full TAW every 2 days will apply far
+    # more water than a demand-based approach that only irrigates at RAW.
+    series = [(3.0, 0.0)] * 30
+    demand = simulate_demand_based_scenario(series, taw_mm=100.0, raw_mm=50.0, efficiency=1.0)
+    fixed = simulate_fixed_schedule_scenario(series, taw_mm=100.0, efficiency=1.0, interval_days=2, fixed_net_depth_mm=100.0)
+    assert demand.total_gross_mm < fixed.total_gross_mm

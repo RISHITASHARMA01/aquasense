@@ -18,12 +18,18 @@ from app.models.field_crop import FieldCrop
 from app.seed_data.soil_properties import get_soil_properties
 from app.services.et0 import calculate_et0
 from app.services.water_balance import (
+    APPLICATION_EFFICIENCY,
     effective_kc,
     effective_rainfall_mm,
+    readily_available_water_mm,
+    simulate_demand_based_scenario,
+    simulate_fixed_schedule_scenario,
     update_depletion_mm,
     recommend_irrigation,
 )
-from app.services.weather import fetch_weather_window
+
+FIXED_SCHEDULE_INTERVAL_DAYS = 3
+from app.services.weather import fetch_weather_forecast, fetch_weather_window
 
 MAX_SIMULATION_DAYS = 90
 
@@ -90,6 +96,7 @@ def _simulate_daily_series(field: Field, field_crop: FieldCrop, forecast_days: i
                 "stage": stage,
                 "depletion_mm": round(depletion, 2),
                 "precipitation_mm": precipitation,
+                "effective_rain_mm": round(eff_rain, 3),
                 "used_radiation_fallback": et0_result.used_radiation_fallback,
             }
         )
@@ -129,6 +136,65 @@ def get_field_recommendation(field: Field, field_crop: FieldCrop) -> dict:
         "gross_depth_mm": rec.gross_depth_mm,
         "duration_hours": rec.duration_hours,
         "reasoning": rec.reasoning,
+    }
+
+
+def get_field_forecast(field: Field, days: int = 7) -> list[dict]:
+    """Raw temperature/precipitation forecast for a field's location, used
+    by the frontend's weather strip (no crop required)."""
+    weather = fetch_weather_forecast(field.latitude, field.longitude, days=days)
+    daily = weather["daily"]
+    dates = daily.get("time", [])
+    return [
+        {
+            "date": dates[i],
+            "t_max_c": daily["temperature_2m_max"][i],
+            "t_min_c": daily["temperature_2m_min"][i],
+            "precipitation_mm": daily["precipitation_sum"][i] or 0.0,
+        }
+        for i in range(len(dates))
+    ]
+
+
+def get_water_savings(field: Field, field_crop: FieldCrop) -> dict:
+    """Compare AquaSense's demand-based irrigation against a fixed-interval
+    calendar schedule over the same historical weather window, to quantify
+    the headline "% water saved" metric.
+
+    Both scenarios run over the identical ETc/effective-rainfall series so
+    the only variable is *when/how much* each strategy irrigates — not
+    differing weather assumptions.
+    """
+    series, ctx = _simulate_daily_series(field, field_crop)
+    if not series:
+        raise ValueError("No weather data available to compute water savings yet")
+
+    taw = ctx["taw_mm"]
+    raw = readily_available_water_mm(taw, field_crop.crop.depletion_fraction_p)
+    efficiency = APPLICATION_EFFICIENCY[field.irrigation_method]
+
+    daily_pairs = [(entry["etc_mm"], entry["effective_rain_mm"]) for entry in series]
+
+    aquasense = simulate_demand_based_scenario(daily_pairs, taw, raw, efficiency)
+    fixed = simulate_fixed_schedule_scenario(
+        daily_pairs, taw, efficiency, FIXED_SCHEDULE_INTERVAL_DAYS, fixed_net_depth_mm=raw
+    )
+
+    percent_saved = (
+        round(100 * (fixed.total_gross_mm - aquasense.total_gross_mm) / fixed.total_gross_mm, 1)
+        if fixed.total_gross_mm > 0
+        else 0.0
+    )
+
+    return {
+        "field_id": field.id,
+        "days_simulated": len(series),
+        "aquasense_total_mm": aquasense.total_gross_mm,
+        "aquasense_events": aquasense.irrigation_events,
+        "fixed_schedule_total_mm": fixed.total_gross_mm,
+        "fixed_schedule_events": fixed.irrigation_events,
+        "fixed_schedule_interval_days": FIXED_SCHEDULE_INTERVAL_DAYS,
+        "percent_water_saved": percent_saved,
     }
 
 

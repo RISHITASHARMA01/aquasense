@@ -6,10 +6,22 @@ from app.db import get_db
 from app.models.field import Field
 from app.models.field_crop import FieldCrop
 from app.models.user import User
-from app.schemas.recommendation import HistoryRead, RecommendationRead
-from app.services.recommendation import get_field_history, get_field_recommendation
+from app.schemas.recommendation import ForecastRead, HistoryRead, RecommendationRead, WaterSavingsRead
+from app.services.recommendation import (
+    get_field_forecast,
+    get_field_history,
+    get_field_recommendation,
+    get_water_savings,
+)
 
 router = APIRouter(prefix="/fields", tags=["recommendations"])
+
+
+def _get_owned_field(field_id: int, user: User, db: Session) -> Field:
+    field = db.query(Field).filter(Field.id == field_id, Field.owner_id == user.id).first()
+    if not field:
+        raise HTTPException(status_code=404, detail="Field not found")
+    return field
 
 
 def _get_field_and_active_crop(field_id: int, user: User, db: Session) -> tuple[Field, FieldCrop]:
@@ -41,3 +53,19 @@ def get_history(
     field, active_crop = _get_field_and_active_crop(field_id, user, db)
     points = get_field_history(field, active_crop, days)
     return HistoryRead(field_id=field.id, points=points)
+
+
+@router.get("/{field_id}/forecast", response_model=ForecastRead)
+def get_forecast(field_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    field = _get_owned_field(field_id, user, db)
+    points = get_field_forecast(field)
+    return ForecastRead(field_id=field.id, points=points)
+
+
+@router.get("/{field_id}/water-savings", response_model=WaterSavingsRead)
+def get_field_water_savings(field_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    field, active_crop = _get_field_and_active_crop(field_id, user, db)
+    try:
+        return get_water_savings(field, active_crop)
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
